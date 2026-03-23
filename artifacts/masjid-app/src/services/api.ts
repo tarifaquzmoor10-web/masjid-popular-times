@@ -74,7 +74,8 @@ async function queryOverpass(query: string): Promise<OverpassResponse> {
 }
 
 export async function fetchNearbyMasjids(lat: number, lon: number): Promise<Masjid[]> {
-  const query = `[out:json][timeout:18];(node["amenity"="place_of_worship"]["religion"="muslim"](around:${SEARCH_RADIUS},${lat},${lon});way["amenity"="place_of_worship"]["religion"="muslim"](around:${SEARCH_RADIUS},${lat},${lon});relation["amenity"="place_of_worship"]["religion"="muslim"](around:${SEARCH_RADIUS},${lat},${lon}););out center body;`;
+  // Broad query: place_of_worship + religion=muslim AND building=mosque (catches more masjids)
+  const query = `[out:json][timeout:25];(node["amenity"="place_of_worship"]["religion"="muslim"](around:${SEARCH_RADIUS},${lat},${lon});way["amenity"="place_of_worship"]["religion"="muslim"](around:${SEARCH_RADIUS},${lat},${lon});relation["amenity"="place_of_worship"]["religion"="muslim"](around:${SEARCH_RADIUS},${lat},${lon});node["building"="mosque"](around:${SEARCH_RADIUS},${lat},${lon});way["building"="mosque"](around:${SEARCH_RADIUS},${lat},${lon}););out center body;`;
 
   const data = await queryOverpass(query);
 
@@ -215,35 +216,20 @@ export function distanceToMecca(lat: number, lon: number): number {
   return Math.round(calculateDistance(lat, lon, 21.4225, 39.8262) / 1000);
 }
 
-// Offsets added to adhan time to estimate jamat (congregation) start
-const JAMAT_OFFSETS: Record<PrayerName, number> = {
-  Fajr: 20,
-  Dhuhr: 15,
-  Asr: 10,
-  Maghrib: 5,
-  Isha: 15,
-};
-
-function addMinutes(timeStr: string, minutes: number): string {
-  const [h, m] = timeStr.split(':').map(Number);
-  const total = h * 60 + m + minutes;
-  const newH = Math.floor(total / 60) % 24;
-  const newM = total % 60;
-  return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
-}
-
-// Convert "HH:MM (timezone)" format from AlAdhan to clean "HH:MM"
+// Strip any trailing timezone info from AlAdhan time strings e.g. "05:12 (PKT)" → "05:12"
 function cleanTime(t: string): string {
   return t.split(' ')[0];
 }
 
+// Returns the actual adhan (prayer call) times from AlAdhan — no fake offsets applied.
+// AlAdhan calculates using the user's precise GPS + Islamic calculation method.
 export function getEstimatedJamats(timings: PrayerTimings): EstimatedJamats {
   return {
-    Fajr: addMinutes(cleanTime(timings.Fajr), JAMAT_OFFSETS.Fajr),
-    Dhuhr: addMinutes(cleanTime(timings.Dhuhr), JAMAT_OFFSETS.Dhuhr),
-    Asr: addMinutes(cleanTime(timings.Asr), JAMAT_OFFSETS.Asr),
-    Maghrib: addMinutes(cleanTime(timings.Maghrib), JAMAT_OFFSETS.Maghrib),
-    Isha: addMinutes(cleanTime(timings.Isha), JAMAT_OFFSETS.Isha),
+    Fajr:    cleanTime(timings.Fajr),
+    Dhuhr:   cleanTime(timings.Dhuhr),
+    Asr:     cleanTime(timings.Asr),
+    Maghrib: cleanTime(timings.Maghrib),
+    Isha:    cleanTime(timings.Isha),
   };
 }
 
