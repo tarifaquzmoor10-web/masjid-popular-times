@@ -1,6 +1,6 @@
 import type { PrayerSlot } from './types';
 
-export const SEARCH_RADIUS = 5000;
+export const SEARCH_RADIUS = 15000;
 export const VISIT_THRESHOLD = 50;
 export const VISIT_COOLDOWN = 30 * 60 * 1000;
 export const LOCATION_UPDATE_INTERVAL = 10000;
