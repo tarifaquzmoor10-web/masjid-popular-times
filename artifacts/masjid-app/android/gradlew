@@ -248,4 +248,10 @@ eval "set -- $(
         tr '\n' ' '
     )" '"$@"'
 
+# --- Patch Java 21 → 17 so JDK 17 CI builds succeed ---
+SCRIPT_DIR="$( cd -P "$( dirname "$0" )" > /dev/null 2>&1 && pwd )"
+find "$SCRIPT_DIR" -name "capacitor.build.gradle" -exec sed -i 's/JavaVersion\.VERSION_21/JavaVersion.VERSION_17/g' {} \; 2>/dev/null || true
+find "$SCRIPT_DIR" -name "build.gradle" -path "*/@capacitor/android/capacitor/*" -exec sed -i 's/JavaVersion\.VERSION_21/JavaVersion.VERSION_17/g' {} \; 2>/dev/null || true
+# --------------------------------------------------------
+
 exec "$JAVACMD" "$@"
