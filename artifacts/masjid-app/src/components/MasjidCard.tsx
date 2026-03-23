@@ -142,9 +142,9 @@ export default function MasjidCard({ masjid, index, isNearest, estimatedJamats, 
           {/* Header label */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Estimated Jamat Times
+              Prayer Times
             </span>
-            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.18)' }}>±5 min</span>
+            <span style={{ fontSize: 9, color: 'rgba(212,168,67,0.45)', fontWeight: 600 }}>🛰 Live · AlAdhan</span>
           </div>
 
           {/* 5 columns */}
