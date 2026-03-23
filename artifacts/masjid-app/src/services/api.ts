@@ -1,4 +1,4 @@
-import type { Masjid, Visit, PopularTimesData, OverpassResponse, PrayerTimings } from '../types';
+import type { Masjid, Visit, PopularTimesData, OverpassResponse, PrayerTimings, EstimatedJamats, PrayerName } from '../types';
 import {
   SEARCH_RADIUS, VISIT_COOLDOWN,
   VISITS_KEY, LAST_VISIT_KEY, USER_ID_KEY, PRAYER_SLOTS, DEMO_MASJIDS,
@@ -213,4 +213,71 @@ export function calculateQibla(lat: number, lon: number): number {
 
 export function distanceToMecca(lat: number, lon: number): number {
   return Math.round(calculateDistance(lat, lon, 21.4225, 39.8262) / 1000);
+}
+
+// Offsets added to adhan time to estimate jamat (congregation) start
+const JAMAT_OFFSETS: Record<PrayerName, number> = {
+  Fajr: 20,
+  Dhuhr: 15,
+  Asr: 10,
+  Maghrib: 5,
+  Isha: 15,
+};
+
+function addMinutes(timeStr: string, minutes: number): string {
+  const [h, m] = timeStr.split(':').map(Number);
+  const total = h * 60 + m + minutes;
+  const newH = Math.floor(total / 60) % 24;
+  const newM = total % 60;
+  return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+}
+
+// Convert "HH:MM (timezone)" format from AlAdhan to clean "HH:MM"
+function cleanTime(t: string): string {
+  return t.split(' ')[0];
+}
+
+export function getEstimatedJamats(timings: PrayerTimings): EstimatedJamats {
+  return {
+    Fajr: addMinutes(cleanTime(timings.Fajr), JAMAT_OFFSETS.Fajr),
+    Dhuhr: addMinutes(cleanTime(timings.Dhuhr), JAMAT_OFFSETS.Dhuhr),
+    Asr: addMinutes(cleanTime(timings.Asr), JAMAT_OFFSETS.Asr),
+    Maghrib: addMinutes(cleanTime(timings.Maghrib), JAMAT_OFFSETS.Maghrib),
+    Isha: addMinutes(cleanTime(timings.Isha), JAMAT_OFFSETS.Isha),
+  };
+}
+
+export const PRAYER_ORDER: PrayerName[] = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+
+export function getNextPrayer(jamats: EstimatedJamats): PrayerName {
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  for (const p of PRAYER_ORDER) {
+    const [h, m] = jamats[p].split(':').map(Number);
+    if (h * 60 + m > nowMins) return p;
+  }
+  return 'Fajr';
+}
+
+export function formatJamatTime(t: string): string {
+  const [h, m] = t.split(':').map(Number);
+  const suffix = h >= 12 ? 'pm' : 'am';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, '0')}${suffix}`;
+}
+
+// Crowd level label for a given prayer from popular times data
+export function prayerCrowdLevel(
+  prayerName: PrayerName,
+  masjidId: string
+): { level: 'low' | 'medium' | 'high'; color: string; dot: string } {
+  const data = getPopularTimes(masjidId);
+  const slotMap: Record<PrayerName, string> = {
+    Fajr: 'fajr', Dhuhr: 'dhuhr', Asr: 'asr', Maghrib: 'maghrib', Isha: 'isha',
+  };
+  const slot = data.slots.find(s => s.name === slotMap[prayerName]);
+  const pct = slot?.percentage ?? 30;
+  if (pct <= 35) return { level: 'low', color: '#22c55e', dot: '🟢' };
+  if (pct <= 65) return { level: 'medium', color: '#eab308', dot: '🟡' };
+  return { level: 'high', color: '#ef4444', dot: '🔴' };
 }
