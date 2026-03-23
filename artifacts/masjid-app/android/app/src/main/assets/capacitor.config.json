@@ -1,0 +1,18 @@
+{
+	"appId": "com.masjidpopulartimes.app",
+	"appName": "Masjid Popular Times",
+	"webDir": "dist/android",
+	"plugins": {
+		"Geolocation": {
+			"permissions": [
+				"coarse",
+				"fine"
+			]
+		}
+	},
+	"android": {
+		"allowMixedContent": false,
+		"captureInput": true,
+		"webContentsDebuggingEnabled": false
+	}
+}
