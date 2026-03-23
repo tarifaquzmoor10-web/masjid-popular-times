@@ -7,6 +7,16 @@ export interface Masjid {
   distance: number;
 }
 
+export type PrayerName = 'Fajr' | 'Dhuhr' | 'Asr' | 'Maghrib' | 'Isha';
+
+export interface EstimatedJamats {
+  Fajr: string;
+  Dhuhr: string;
+  Asr: string;
+  Maghrib: string;
+  Isha: string;
+}
+
 export interface Visit {
   masjid_id: string;
   timestamp: number;
