@@ -25,6 +25,7 @@ export default function HomeScreen({
   const [masjids, setMasjids] = useState<Masjid[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorVisible, setErrorVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [visitLogged, setVisitLogged] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,14 +39,20 @@ export default function HomeScreen({
 
   // Fetch nearby masjids
   const fetchMasjids = useCallback(async (loc: UserLocation | null) => {
-    if (!loc) { setMasjids(DEMO_MASJIDS); setLoading(false); return; }
+    if (!loc) { setMasjids(DEMO_MASJIDS); setLoading(false); setError(null); return; }
     try {
       setError(null);
+      setErrorVisible(false);
       const result = await fetchNearbyMasjids(loc.lat, loc.lon);
       setMasjids(result.length > 0 ? result : DEMO_MASJIDS);
+      if (result.length === 0) setError('No masjids nearby — showing sample data');
     } catch {
-      setError('Could not load nearby masjids');
+      // Silently fall back to demo data — no scary red banner
       setMasjids(DEMO_MASJIDS);
+      setError('Network issue — showing sample data');
+      setErrorVisible(true);
+      // Auto-dismiss after 4 seconds
+      setTimeout(() => setErrorVisible(false), 4000);
     } finally { setLoading(false); setRefreshing(false); }
   }, []);
 
@@ -317,11 +324,22 @@ export default function HomeScreen({
           </div>
         </div>
 
-        {/* Error banner */}
-        {error && !loading && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 12, marginBottom: 12, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.12)' }}>
-            <span style={{ fontSize: 14 }}>⚠️</span>
-            <p style={{ fontSize: 11, color: '#f87171' }}>{error} · showing demo data</p>
+        {/* Error toast — soft, auto-dismisses */}
+        {error && errorVisible && !loading && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '9px 12px', borderRadius: 12, marginBottom: 12,
+            background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.14)',
+            animation: 'fadeInDown 0.3s ease-out',
+          }}>
+            <span style={{ fontSize: 13, flexShrink: 0 }}>📡</span>
+            <p style={{ fontSize: 11, color: 'rgba(234,179,8,0.85)', flex: 1 }}>{error}</p>
+            <button
+              onClick={() => setErrorVisible(false)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.2)', padding: '0 2px', flexShrink: 0 }}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
           </div>
         )}
 
