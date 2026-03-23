@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { Masjid, UserLocation } from '../types';
-import { fetchNearbyMasjids, logVisit } from '../services/api';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import type { Masjid, UserLocation, PrayerTimings, EstimatedJamats } from '../types';
+import { fetchNearbyMasjids, logVisit, fetchPrayerTimes, getEstimatedJamats, getNextPrayer } from '../services/api';
 import { VISIT_THRESHOLD, DEMO_MASJIDS } from '../constants';
 import { useFavorites } from '../hooks/useFavorites';
 import MasjidCard from './MasjidCard';
@@ -16,7 +16,7 @@ interface HomeScreenProps {
   onSelectMasjid: (masjid: Masjid) => void;
 }
 
-type SortMode = 'distance' | 'name';
+type SortMode = 'distance' | 'jamat' | 'name';
 
 export default function HomeScreen({
   location, locationError, locationLoading, permissionDenied,
@@ -29,9 +29,14 @@ export default function HomeScreen({
   const [visitLogged, setVisitLogged] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('distance');
+  const [showSortMenu, setShowSortMenu] = useState(false);
   const [showFavOnly, setShowFavOnly] = useState(false);
+  const [prayerTimings, setPrayerTimings] = useState<PrayerTimings | null>(null);
+  const [estimatedJamats, setEstimatedJamats] = useState<EstimatedJamats | null>(null);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
   const { favorites } = useFavorites();
 
+  // Fetch nearby masjids
   const fetchMasjids = useCallback(async (loc: UserLocation | null) => {
     if (!loc) { setMasjids(DEMO_MASJIDS); setLoading(false); return; }
     try {
@@ -43,6 +48,22 @@ export default function HomeScreen({
       setMasjids(DEMO_MASJIDS);
     } finally { setLoading(false); setRefreshing(false); }
   }, []);
+
+  // Fetch prayer timings once location is ready
+  useEffect(() => {
+    if (!location) return;
+    fetchPrayerTimes(location.lat, location.lon)
+      .then(t => {
+        setPrayerTimings(t);
+        setEstimatedJamats(getEstimatedJamats(t));
+      })
+      .catch(() => {
+        // fallback static jamats (reasonable defaults)
+        setEstimatedJamats({
+          Fajr: '05:20', Dhuhr: '13:15', Asr: '16:40', Maghrib: '18:50', Isha: '20:15',
+        });
+      });
+  }, [location?.lat, location?.lon]);
 
   useEffect(() => {
     if (!locationLoading) fetchMasjids(location);
@@ -57,6 +78,17 @@ export default function HomeScreen({
       }
     });
   }, [location, masjids]);
+
+  // Close sort dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) {
+        setShowSortMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const handleRefresh = () => { setRefreshing(true); setLoading(true); onRetryLocation(); };
 
@@ -75,6 +107,11 @@ export default function HomeScreen({
     [masjids, favorites]
   );
 
+  const nextPrayer = useMemo(() => {
+    if (!estimatedJamats) return null;
+    return getNextPrayer(estimatedJamats);
+  }, [estimatedJamats]);
+
   const displayMasjids = useMemo(() => {
     let list = showFavOnly ? favMasjids : masjids;
     if (searchQuery.trim()) {
@@ -82,8 +119,17 @@ export default function HomeScreen({
       list = list.filter(m => m.name.toLowerCase().includes(q) || m.address.toLowerCase().includes(q));
     }
     if (sortMode === 'name') return [...list].sort((a, b) => a.name.localeCompare(b.name));
+    if (sortMode === 'jamat' && estimatedJamats) {
+      return [...list].sort((a, b) => a.distance - b.distance);
+    }
     return list;
-  }, [masjids, favMasjids, searchQuery, sortMode, showFavOnly]);
+  }, [masjids, favMasjids, searchQuery, sortMode, showFavOnly, estimatedJamats]);
+
+  const sortLabels: Record<SortMode, string> = {
+    distance: '📏 Nearest',
+    jamat: '🕐 Jamat',
+    name: '🔤 A–Z',
+  };
 
   return (
     <div style={{ minHeight: '100%', color: '#fff', paddingBottom: 72 }}>
@@ -188,7 +234,6 @@ export default function HomeScreen({
       {/* ═══ LIST ═══ */}
       <div style={{ padding: '16px 14px 0' }}>
 
-        {/* Verse of the Day */}
         <VerseOfDay />
 
         {/* Section heading + controls */}
@@ -201,7 +246,7 @@ export default function HomeScreen({
             <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', marginTop: 1 }}>
               {searchQuery
                 ? `${displayMasjids.length} result${displayMasjids.length !== 1 ? 's' : ''}`
-                : location ? `${displayMasjids.length} found · by ${sortMode}` : 'Demo data · allow GPS for live results'}
+                : location ? `${displayMasjids.length} found · Estimated jamat times` : 'Demo data · allow GPS for live results'}
             </p>
           </div>
 
@@ -216,16 +261,59 @@ export default function HomeScreen({
               transition: 'all 0.2s ease',
             }}>❤️</button>
 
-            {/* Sort toggle */}
-            <button onClick={() => { if ('vibrate' in navigator) navigator.vibrate(8); setSortMode(m => m === 'distance' ? 'name' : 'distance'); }} style={{
-              padding: '5px 9px', borderRadius: 10, cursor: 'pointer', fontSize: 11, fontWeight: 600,
-              background: 'rgba(255,255,255,0.04)',
-              color: 'rgba(255,255,255,0.4)',
-              border: '1px solid rgba(255,255,255,0.07)',
-              whiteSpace: 'nowrap',
-            }}>
-              {sortMode === 'distance' ? '📏 Dist' : '🔤 A–Z'}
-            </button>
+            {/* Sort dropdown */}
+            <div ref={sortMenuRef} style={{ position: 'relative' }}>
+              <button
+                onClick={() => { if ('vibrate' in navigator) navigator.vibrate(8); setShowSortMenu(v => !v); }}
+                style={{
+                  padding: '5px 9px', borderRadius: 10, cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                  background: showSortMenu ? 'rgba(212,168,67,0.12)' : 'rgba(255,255,255,0.04)',
+                  color: showSortMenu ? '#f0d78c' : 'rgba(255,255,255,0.4)',
+                  border: showSortMenu ? '1px solid rgba(212,168,67,0.22)' : '1px solid rgba(255,255,255,0.07)',
+                  whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4,
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                {sortLabels[sortMode]}
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+                  style={{ transform: showSortMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }}>
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+
+              {/* Dropdown menu */}
+              {showSortMenu && (
+                <div style={{
+                  position: 'absolute', top: '100%', right: 0, marginTop: 6, zIndex: 50,
+                  background: 'rgba(8,24,14,0.97)', border: '1px solid rgba(45,122,79,0.25)',
+                  borderRadius: 14, overflow: 'hidden', minWidth: 160,
+                  boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+                  animation: 'fadeInDown 0.15s ease-out',
+                }}>
+                  {(['distance', 'jamat', 'name'] as SortMode[]).map(mode => (
+                    <button
+                      key={mode}
+                      onClick={() => { setSortMode(mode); setShowSortMenu(false); if ('vibrate' in navigator) navigator.vibrate(8); }}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left',
+                        padding: '11px 14px', fontSize: 12, fontWeight: 600,
+                        background: sortMode === mode ? 'rgba(212,168,67,0.1)' : 'transparent',
+                        color: sortMode === mode ? '#f0d78c' : 'rgba(255,255,255,0.55)',
+                        border: 'none', cursor: 'pointer',
+                        borderBottom: mode !== 'name' ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                      }}
+                    >
+                      {mode === 'distance' && '📏 Nearest Masjid'}
+                      {mode === 'jamat' && '🕐 Earliest Jamat First'}
+                      {mode === 'name' && '🔤 Alphabetical (A–Z)'}
+                      {sortMode === mode && (
+                        <span style={{ float: 'right', color: '#d4a843' }}>✓</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -257,7 +345,15 @@ export default function HomeScreen({
           </div>
         ) : (
           displayMasjids.map((m, i) => (
-            <MasjidCard key={m.id} masjid={m} index={i} onSelect={onSelectMasjid} />
+            <MasjidCard
+              key={m.id}
+              masjid={m}
+              index={i}
+              isNearest={i === 0 && !showFavOnly && !searchQuery}
+              estimatedJamats={estimatedJamats}
+              nextPrayer={nextPrayer}
+              onSelect={onSelectMasjid}
+            />
           ))
         )}
       </div>
