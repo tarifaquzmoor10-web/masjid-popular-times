@@ -20,9 +20,13 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
     })), []);
 
   useEffect(() => {
+    // Return visitors get a shorter splash (0.8s instead of 2.8s)
+    const returning = !!localStorage.getItem('onboarding_done');
+    const exitAt  = returning ? 600  : 2300;
+    const doneAt  = returning ? 1000 : 2800;
     const t1 = setTimeout(() => setPhase('show'), 80);
-    const t2 = setTimeout(() => setPhase('exit'), 2300);
-    const t3 = setTimeout(() => onComplete(), 2800);
+    const t2 = setTimeout(() => setPhase('exit'), exitAt);
+    const t3 = setTimeout(() => onComplete(), doneAt);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [onComplete]);
 
