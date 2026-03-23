@@ -1,0 +1,20 @@
+{
+  "name": "Masjid Popular Times",
+  "short_name": "Masjid",
+  "description": "Find nearby mosques, get accurate prayer times, Qibla direction & full Quran reader",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#040e08",
+  "theme_color": "#040e08",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["lifestyle", "religion"],
+  "lang": "en"
+}
