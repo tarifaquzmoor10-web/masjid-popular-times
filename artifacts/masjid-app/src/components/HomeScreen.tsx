@@ -253,7 +253,7 @@ export default function HomeScreen({
             <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', marginTop: 1 }}>
               {searchQuery
                 ? `${displayMasjids.length} result${displayMasjids.length !== 1 ? 's' : ''}`
-                : location ? `${displayMasjids.length} found · Estimated jamat times` : 'Demo data · allow GPS for live results'}
+                : location ? `${displayMasjids.length} found · Live prayer times` : 'Demo data · allow GPS for live results'}
             </p>
           </div>
 
